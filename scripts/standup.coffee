@@ -1,6 +1,5 @@
 # Description:
 #   Have Hubot remind you to do standups.
-#   hh:mm must be in the same timezone as the server Hubot is on. Probably UTC.
 #
 #   This is configured to work for Hipchat. You may need to change the 'create
 #   standup' command to match the adapter you're using.
@@ -13,21 +12,23 @@
 #   hubot create standup hh:mm - Creates a standup at hh:mm every weekday for this room
 #   hubot create standup hh:mm at location/url - Creates a standup at hh:mm (UTC) every weekday for this chat room with a reminder for a physical location or url
 #   hubot create standup Monday@hh:mm - Creates a standup at hh:mm every Monday for this room
-#   hubot create standup hh:mm UTC+2 - Creates a standup at hh:mm every weekday for this room (relative to UTC)
-#   hubot create standup Monday@hh:mm UTC+2 - Creates a standup at hh:mm every Monday for this room (relative to UTC)
+#   hubot create standup hh:mm Europe/Warsaw - Creates a standup at hh:mm every weekday for this room (in local timezone)
+#   hubot create standup Monday@hh:mm Europe/London - Creates a standup at hh:mm every Monday for this room (in local timezone)
 #   hubot list standups - See all standups for this room
 #   hubot list all standups - See all standups in every room
-#   hubot delete standup hh:mm - If you have a standup on weekdays at hh:mm, delete it. Can also supply a weekday and/or UTC offset
+#   hubot delete standup hh:mm - If you have a standup on weekdays at hh:mm, delete it
 #   hubot delete all standups - Deletes all standups for this room.
 #
 # Dependencies:
 #   underscore
 #   cron
+#   moment-timezone
 
 ###jslint node: true###
 
 cronJob = require('cron').CronJob
 _ = require('underscore')
+moment = require('moment-timezone')
 
 module.exports = (robot) ->
   # Compares current time to the time of the standup to see if it should be fired.
@@ -35,18 +36,22 @@ module.exports = (robot) ->
     standupTime = standup.time
     standupDayOfWeek = getDayOfWeek(standup.dayOfWeek)
     now = new Date()
-    standupDate = new Date()
-    utcOffset = -standup.utc or (now.getTimezoneOffset() / 60)
+    timezone = standup.timezone
 
     standupHours = parseInt(standupTime.split(":")[0], 10)
     standupMinutes = parseInt(standupTime.split(":")[1], 10)
 
-    standupDate.setUTCMinutes(standupMinutes)
-    standupDate.setUTCHours(standupHours + utcOffset)
+    standupDate = moment.tz([now.getFullYear(),
+                             now.getMonth(),
+                             now.getDate(),
+                             standupHours,
+                             standupMinutes], timezone).utc().toDate()
+
+    nowLocalDay = moment.tz(now, timezone).day()
 
     result = (standupDate.getUTCHours() == now.getUTCHours()) and
       (standupDate.getUTCMinutes() == now.getUTCMinutes()) and
-      (standupDayOfWeek == -1 or (standupDayOfWeek == standupDate.getDay() == now.getUTCDay()))
+      (standupDayOfWeek == -1 or (standupDayOfWeek == nowLocalDay))
 
     if result then true else false
 
@@ -92,11 +97,11 @@ module.exports = (robot) ->
 
   # Confirm a time is in the valid 00:00 format
   timeIsValid = (time) ->
-    validateTimePattern = /([01]?[0-9]|2[0-4]):[0-5]?[0-9]/
+    validateTimePattern = /([01]?[0-9]|2[0-4]):[0-5][0-9]/
     return validateTimePattern.test time
 
   # Stores a standup in the brain.
-  saveStandup = (room, dayOfWeek, time, utcOffset, location, msg) ->
+  saveStandup = (room, dayOfWeek, time, timezone, location, msg) ->
     if !timeIsValid time
       msg.send "Sorry, but I couldn't find a time to create the standup at."
       return
@@ -106,12 +111,12 @@ module.exports = (robot) ->
       room: room
       dayOfWeek: dayOfWeek
       time: time
-      utc: utcOffset
+      timezone: timezone
       location: location.trim()
     standups.push newStandup
     updateBrain standups
     displayDate = dayOfWeek or 'weekday'
-    msg.send 'Ok, from now on I\'ll remind this room to do a standup every ' + displayDate + ' at ' + time + (if location then location else '')
+    msg.send 'Ok, from now on I\'ll remind this room to do a standup every ' + displayDate + ' at ' + time + ' ' + (if timezone then timezone else 'UTC') + (if location then (', location: ' + location) else '')
     return
 
   # Updates the brain's standup knowledge.
@@ -125,7 +130,7 @@ module.exports = (robot) ->
     standupsToKeep = _.reject(standups, room: room)
     updateBrain standupsToKeep
     standupsCleared = standups.length - (standupsToKeep.length)
-    msg.send 'Deleted ' + standupsCleared + ' standups for ' + room
+    msg.send 'Deleted ' + standupsCleared + ' standup' + (if standupsCleared != 1 then 's' else '') + ' for ' + room
     return
 
   # Remove specific standups for a room
@@ -153,9 +158,9 @@ module.exports = (robot) ->
     message.push 'Use me to create a standup, and then I\'ll post in this room at the times you specify. Here\'s how:'
     message.push ''
     message.push robot.name + ' create standup hh:mm - I\'ll remind you to standup in this room at hh:mm every weekday.'
-    message.push robot.name + ' create standup hh:mm UTC+2 - I\'ll remind you to standup in this room at hh:mm UTC+2 every weekday.'
+    message.push robot.name + ' create standup hh:mm Europe/Warsaw - I\'ll remind you to standup in this room at hh:mm Europe/Warsaw every weekday.'
     message.push robot.name + ' create standup hh:mm at location/url - Creates a standup at hh:mm (UTC) every weekday for this chat room with a reminder for a physical location or url'
-    message.push robot.name + ' create standup Monday@hh:mm UTC+2 - I\'ll remind you to standup in this room at hh:mm UTC+2 every Monday.'
+    message.push robot.name + ' create standup Monday@hh:mm Europe/Warsaw - I\'ll remind you to standup in this room at hh:mm Europe/Warsaw every Monday.'
     message.push robot.name + ' list standups - See all standups for this room.'
     message.push robot.name + ' list all standups- Be nosey and see when other rooms have their standup.'
     message.push robot.name + ' delete standup hh:mm - If you have a standup at hh:mm, I\'ll delete it.'
@@ -171,10 +176,12 @@ module.exports = (robot) ->
     else
       standupsText = [ 'Here\'s your standups:' ].concat(_.map(standups, (standup) ->
         text =  'Time: ' + standup.time
-        if standup.utc
-          text += ' UTC' + standup.utc
+        if standup.timezone
+          text += ' ' + standup.timezone
+        else
+          text += ' UTC'
         if standup.location
-          text +=', Location: '+ standup.location
+          text +=', location: '+ standup.location
         text
       ))
       msg.send standupsText.join('\n')
@@ -186,11 +193,13 @@ module.exports = (robot) ->
       msg.send 'No, because there aren\'t any.'
     else
       standupsText = [ 'Here\'s the standups for every room:' ].concat(_.map(standups, (standup) ->
-        text =  'Room: ' + standup.room + ', Time: ' + standup.time
-        if standup.utc
-          text += ' UTC' + standup.utc
+        text =  'Room: ' + standup.room + ', time: ' + standup.time
+        if standup.timezone
+          text += ' ' + standup.timezone
+        else
+          text += ' UTC'
         if standup.location
-          text +=', Location: '+ standup.location
+          text +=', location: '+ standup.location
         text
       ))
       msg.send standupsText.join('\n')
@@ -215,16 +224,16 @@ module.exports = (robot) ->
   new cronJob('1 * * * * 1-5', checkStandups, null, true)
 
   # Global regex should match all possible options
-  robot.respond /(.*?)standups? ?(?:([A-z]*)\s?\@\s?)?((?:[01]?[0-9]|2[0-4]):[0-5]?[0-9])?(?: UTC([- +]\d\d?))?(.*)/i, (msg) ->
+  robot.respond /(.*?)standups? ?(?:([A-z]*)\s?\@\s?)?((?:[01]?[0-9]|2[0-4]):[0-5]?[0-9])?(?: (\w+\/\w+))? ?(.*)/i, (msg) ->
     action = msg.match[1].trim().toLowerCase()
     dayOfWeek = msg.match[2]
     time = msg.match[3]
-    utcOffset = msg.match[4]
+    timezone = msg.match[4]
     location = msg.match[5]
     room = findRoom msg
 
     switch action
-      when 'create' then saveStandup room, dayOfWeek, time, utcOffset, location, msg
+      when 'create' then saveStandup room, dayOfWeek, time, timezone, location, msg
       when 'list' then listStandupsForRoom room, msg
       when 'list all' then listStandupsForAllRooms msg
       when 'delete' then clearSpecificStandupForRoom room, time, msg

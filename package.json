@@ -15,6 +15,7 @@
   ],
   "dependencies": {
     "cron": "~1.0.4",
+    "moment-timezone": "0.5.10",
     "underscore": "~1.8.3"
   },
   "author": "Shaun Donnelly <shaundonnelly@gmail.com>",
