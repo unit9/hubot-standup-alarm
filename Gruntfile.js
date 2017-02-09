@@ -28,10 +28,11 @@ module.exports = function (grunt) {
       tasks: ['test']
     },
     coffeelint: {
-      app: ['src/**/*.coffee'],
+      app: ['scripts/*.coffee', 'test/*.coffee'],
       options: {
         'arrow_spacing': {'level': 'warn'},
         'braces_spacing': {'level': 'warn'},
+        'max_line_length': {'value': 120, 'level': 'warn'},
         'no_empty_functions': {'level': 'warn'},
         'no_empty_param_list': {'level': 'warn'},
         'no_interpolation_in_single_quotes': {'level': 'warn'},
