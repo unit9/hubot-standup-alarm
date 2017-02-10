@@ -102,10 +102,10 @@ module.exports = (robot) ->
        robot.adapter.client.rtm.dataStore and
        robot.adapter.client.rtm.dataStore.getChannelGroupOrDMById
 
-      roomName = robot.adapter.client.rtm.dataStore.getChannelGroupOrDMById room
+      roomObject = robot.adapter.client.rtm.dataStore.getChannelGroupOrDMById room
 
-      if roomName
-        return roomName
+      if roomObject
+        return roomObject.name
 
     return room
 
