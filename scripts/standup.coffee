@@ -95,6 +95,20 @@ module.exports = (robot) ->
       room = msg.envelope.user.reply_to
     room
 
+  # Returns human-readable name of the room.
+  # Currently implemented for Slack adapter only.
+  getRoomName = (room) ->
+    if robot.adapter.client and robot.adapter.client.rtm and
+       robot.adapter.client.rtm.dataStore and
+       robot.adapter.client.rtm.dataStore.getChannelGroupOrDMById
+
+      roomObject = robot.adapter.client.rtm.dataStore.getChannelGroupOrDMById room
+
+      if roomObject
+        return roomObject.name
+
+    return room
+
   # Confirm a time is in the valid 00:00 format
   timeIsValid = (time) ->
     validateTimePattern = /([01]?[0-9]|2[0-4]):[0-5][0-9]/
@@ -193,7 +207,7 @@ module.exports = (robot) ->
       msg.send 'No, because there aren\'t any.'
     else
       standupsText = [ 'Here\'s the standups for every room:' ].concat(_.map(standups, (standup) ->
-        text =  'Room: ' + standup.room + ', time: ' + standup.time
+        text =  'Room: ' + getRoomName(standup.room) + ', time: ' + standup.time
         if standup.timezone
           text += ' ' + standup.timezone
         else
